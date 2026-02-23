@@ -6,24 +6,45 @@
 <style>
 body {
   margin:0; height:100vh;
-  display:flex; justify-content:center; align-items:center;
+  display:flex; justify-content:center; align-items:flex-start;
   font-family:monospace;
   background:linear-gradient(135deg,#0f0f14,#151522);
   color:white;
   flex-direction:column;
+  padding:20px;
 }
 #vault {
-  width:80%; height:70vh;
+  width:100%; height:30vh;
   padding:20px; font-size:16px;
   border-radius:12px; border:none;
   background:rgba(255,255,255,0.05);
   color:white; resize:none; outline:none; backdrop-filter:blur(10px);
+}
+#latest {
+  margin-top:20px;
+  width:100%;
+  min-height:20vh;
+  padding:15px;
+  border-radius:12px;
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(10px);
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 #status {
   margin-top:10px; font-size:12px; opacity:0.6;
 }
 #keyPrompt {
   margin-bottom:10px;
+}
+button {
+  padding:8px 15px;
+  border:none; border-radius:8px;
+  background:#6c63ff; color:white; cursor:pointer;
+}
+input {
+  padding:6px 10px; border-radius:6px; border:none;
+  margin-right:5px;
 }
 </style>
 </head>
@@ -37,11 +58,13 @@ body {
 <textarea id="vault" placeholder="Type or paste here..." disabled></textarea>
 <div id="status">Locked</div>
 
+<h3>Latest Text:</h3>
+<div id="latest">Nothing yet...</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// --- FIREBASE CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyCb8d5fqVYy38Cwflj-5oRZF2MPIjbkqIk",
   authDomain: "clipboard-acd5d.firebaseapp.com",
@@ -50,6 +73,7 @@ const firebaseConfig = {
   messagingSenderId: "300996610857",
   appId: "1:300996610857:web:cf581e1d9a27713ee58538"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -57,13 +81,11 @@ const vault = document.getElementById("vault");
 const status = document.getElementById("status");
 const unlockBtn = document.getElementById("unlockBtn");
 const secretKeyInput = document.getElementById("secretKey");
+const latestDiv = document.getElementById("latest");
 
 const docRef = doc(db, "vault", "main");
+const MY_SECRET_KEY = "bossjulie"; // 🔐 
 
-// Change this to your private key
-const MY_SECRET_KEY = "bossjuliemapagmahal";
-
-// Unlock button
 unlockBtn.onclick = async () => {
   const enteredKey = secretKeyInput.value.trim();
   if(enteredKey !== MY_SECRET_KEY){
@@ -71,9 +93,9 @@ unlockBtn.onclick = async () => {
     return;
   }
 
-  // Enable textarea
   vault.disabled = false;
   status.innerText = "Loading...";
+  document.getElementById("keyPrompt").style.display = "none";
 
   // Ensure document exists
   try{
@@ -87,13 +109,10 @@ unlockBtn.onclick = async () => {
   onSnapshot(docRef, (snap)=>{
     if(snap.exists()){
       const data = snap.data();
-      if(data.key === MY_SECRET_KEY){ // check key
+      if(data.key === MY_SECRET_KEY){
         vault.value = data.content || "";
+        latestDiv.innerText = data.content || "Nothing yet...";
         status.innerText = "Loaded at " + new Date().toLocaleTimeString();
-      } else {
-        vault.value = "";
-        vault.disabled = true;
-        status.innerText = "Wrong key stored!";
       }
     }
   });
@@ -101,11 +120,9 @@ unlockBtn.onclick = async () => {
   // Auto-save on input
   vault.oninput = async ()=>{
     await setDoc(docRef, { content:vault.value, key:MY_SECRET_KEY });
+    latestDiv.innerText = vault.value;
     status.innerText = "Saved at " + new Date().toLocaleTimeString();
   };
-
-  // Hide key input
-  document.getElementById("keyPrompt").style.display = "none";
 };
 </script>
 
