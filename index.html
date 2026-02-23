@@ -2,69 +2,90 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Private Clipboard</title>
+<title>Shared Clipboard</title>
 <style>
 body {
-  margin:0; height:100vh;
-  display:flex; justify-content:center; align-items:flex-start;
-  font-family:monospace;
-  background:linear-gradient(135deg,#0f0f14,#151522);
-  color:white;
-  flex-direction:column;
-  padding:20px;
+  margin:0;
+  font-family: monospace;
+  background: #151522;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
 }
-#vault {
-  width:100%; height:30vh;
-  padding:20px; font-size:16px;
-  border-radius:12px; border:none;
-  background:rgba(255,255,255,0.05);
-  color:white; resize:none; outline:none; backdrop-filter:blur(10px);
+
+button#copyBtn {
+  width: 20px;
+  height: 20px;
+  background: rgba(255,255,255,0.05);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  opacity: 0.3;
+  transition: opacity 0.2s;
 }
+
+button#copyBtn:hover {
+  opacity: 0.6;
+}
+
+textarea {
+  width: 90%;
+  max-width: 500px;
+  height: 20vh;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 15px;
+  outline: none;
+  resize: none;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  margin-top: 20px;
+}
+
 #latest {
-  margin-top:20px;
-  width:100%;
-  min-height:20vh;
-  padding:15px;
-  border-radius:12px;
-  background:rgba(255,255,255,0.05);
-  backdrop-filter:blur(10px);
-  overflow-wrap: break-word;
+  margin-top: 10px;
+  width: 95%;
+  max-width: 600px;
+  min-height: 25vh;
+  background: rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 18px;
   white-space: pre-wrap;
+  word-wrap: break-word;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+  font-size: 16px;
 }
+
 #status {
-  margin-top:10px; font-size:12px; opacity:0.6;
-}
-#keyPrompt {
-  margin-bottom:10px;
-}
-button {
-  padding:8px 15px;
-  border:none; border-radius:8px;
-  background:#6c63ff; color:white; cursor:pointer;
-}
-input {
-  padding:6px 10px; border-radius:6px; border:none;
-  margin-right:5px;
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.7;
 }
 </style>
 </head>
 <body>
 
-<div id="keyPrompt">
-  <input type="password" id="secretKey" placeholder="Enter secret key">
-  <button id="unlockBtn">Unlock Clipboard</button>
-</div>
+<!-- Copy latest shortcut -->
+<button id="copyBtn">Copy Latest</button>
 
-<textarea id="vault" placeholder="Type or paste here..." disabled></textarea>
-<div id="status">Locked</div>
-
-<h3>Latest Text:</h3>
 <div id="latest">Nothing yet...</div>
+<div id="status">Loading...</div>
+<textarea id="vault" placeholder="Type here..."></textarea>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCb8d5fqVYy38Cwflj-5oRZF2MPIjbkqIk",
   authDomain: "clipboard-acd5d.firebaseapp.com",
@@ -78,51 +99,44 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const vault = document.getElementById("vault");
-const status = document.getElementById("status");
-const unlockBtn = document.getElementById("unlockBtn");
-const secretKeyInput = document.getElementById("secretKey");
 const latestDiv = document.getElementById("latest");
+const status = document.getElementById("status");
+const copyBtn = document.getElementById("copyBtn");
 
 const docRef = doc(db, "vault", "main");
-const MY_SECRET_KEY = "bossjulie"; // 🔐 change this
 
-unlockBtn.onclick = async () => {
-  const enteredKey = secretKeyInput.value.trim();
-  if(enteredKey !== MY_SECRET_KEY){
-    alert("Wrong key!");
-    return;
+// Ensure document exists
+(async ()=>{
+  const snap = await getDoc(docRef);
+  if(!snap.exists()){
+    await setDoc(docRef, { content:"" });
   }
+})();
 
-  vault.disabled = false;
-  status.innerText = "Loading...";
-  document.getElementById("keyPrompt").style.display = "none";
-
-  // Ensure document exists
-  try{
-    const snap = await getDoc(docRef);
-    if(!snap.exists()){
-      await setDoc(docRef, { content:"", key:MY_SECRET_KEY });
+// Real-time listener
+onSnapshot(docRef, snap=>{
+  if(snap.exists()){
+    const data = snap.data();
+    if(document.activeElement !== vault){
+      vault.value = data.content || "";
     }
-  } catch(e){ console.error("Firestore init error:", e); }
+    latestDiv.innerText = data.content || "Nothing yet...";
+    status.innerText = "Loaded at " + new Date().toLocaleTimeString();
+  }
+});
 
-  // Real-time listener
-  onSnapshot(docRef, (snap)=>{
-    if(snap.exists()){
-      const data = snap.data();
-      if(data.key === MY_SECRET_KEY){
-        vault.value = data.content || "";
-        latestDiv.innerText = data.content || "Nothing yet...";
-        status.innerText = "Loaded at " + new Date().toLocaleTimeString();
-      }
-    }
-  });
+// Auto-save on input
+vault.oninput = async ()=>{
+  await setDoc(docRef, { content:vault.value });
+  latestDiv.innerText = vault.value;
+  status.innerText = "Saved at " + new Date().toLocaleTimeString();
+};
 
-  // Auto-save on input
-  vault.oninput = async ()=>{
-    await setDoc(docRef, { content:vault.value, key:MY_SECRET_KEY });
-    latestDiv.innerText = vault.value;
-    status.innerText = "Saved at " + new Date().toLocaleTimeString();
-  };
+// Copy latest shortcut
+copyBtn.onclick = ()=>{
+  navigator.clipboard.writeText(latestDiv.innerText)
+    .then(()=>status.innerText = "Copied latest text!")
+    .catch(err => status.innerText = "Copy failed: " + err);
 };
 </script>
 
